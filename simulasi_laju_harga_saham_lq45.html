@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi Laju Harga Saham LQ45 - Model Asimtotik Stabil</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --bg-color: #050508;
+            --glass-bg: rgba(18, 20, 32, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --neon-purple: #b026ff;
+            --neon-glow: rgba(176, 38, 255, 0.4);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(176, 38, 255, 0.07), transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(65, 105, 225, 0.06), transparent 40%);
+            color: #E2E8F0;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        .glass-card {
+            background: rgba(25, 28, 45, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(12px);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--neon-purple); }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            height: 24px;
+        }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -5px;
+            box-shadow: 0 0 10px var(--neon-purple), 0 0 20px var(--neon-purple);
+            border: 2px solid var(--neon-purple);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Dropdown Styling */
+        select {
+            appearance: none;
+            background: rgba(0, 0, 0, 0.4) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23b026ff' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E") no-repeat calc(100% - 12px) center;
+            border: 1px solid var(--glass-border);
+        }
+        select:focus {
+            outline: none;
+            border-color: var(--neon-purple);
+            box-shadow: 0 0 15px rgba(176, 38, 255, 0.3);
+        }
+        option { background: #0f111a; color: #fff; }
+    </style>
+</head>
+<body class="p-3 md:p-6 flex flex-col xl:flex-row gap-6">
+
+    <!-- Sidebar / Control Panel -->
+    <aside class="glass-panel w-full xl:w-96 rounded-2xl flex flex-col p-6 flex-shrink-0">
+        <div class="mb-5 flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-wide flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-[#b026ff] shadow-[0_0_12px_#b026ff]"></span>
+                    Simulasi LQ45
+                </h1>
+                <p class="text-xs text-gray-400 mt-1">Model Diferensial Orde Dua</p>
+            </div>
+            <span class="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#b026ff]/15 text-[#e077ff] border border-[#b026ff]/30 font-semibold">Stabil</span>
+        </div>
+
+        <div class="flex flex-col gap-4">
+            <!-- Dropdown Emiten -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Preset Emiten (Tabel 1)</label>
+                <select id="stock-select" class="w-full p-3 rounded-xl text-sm text-white font-medium transition-all cursor-pointer">
+                    <option value="ADHI">ADHI (Pt Adhi Karya Tbk)</option>
+                    <option value="ADRO">ADRO (Pt Adaro Energy Tbk)</option>
+                    <option value="ANTM">ANTM (Pt Aneka Tambang Tbk)</option>
+                    <option value="ASII">ASII (Pt Astra International Tbk)</option>
+                    <option value="BBCA">BBCA (Pt Bank Central Asia Tbk)</option>
+                </select>
+            </div>
+
+            <!-- Sliders Container -->
+            <div class="space-y-3 pt-2 border-t border-white/5">
+                <!-- D0 -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between items-end">
+                        <label class="text-xs font-medium text-gray-300">D₀ (Nilai Awal)</label>
+                        <span id="val-d0" class="text-xs font-mono text-[#b026ff] bg-black/40 px-2 py-0.5 rounded">-0.01709</span>
+                    </div>
+                    <input type="range" id="slider-d0" min="-0.05" max="0.05" step="0.0001" value="-0.01709">
+                </div>
+
+                <!-- Theta -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between items-end">
+                        <label class="text-xs font-medium text-gray-300">θ (Koefisien Laju)</label>
+                        <span id="val-theta" class="text-xs font-mono text-[#b026ff] bg-black/40 px-2 py-0.5 rounded">0.00862</span>
+                    </div>
+                    <input type="range" id="slider-theta" min="0.001" max="0.05" step="0.0001" value="0.00862">
+                </div>
+
+                <!-- v0 -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between items-end">
+                        <label class="text-xs font-medium text-gray-300">v₀ (Kecepatan Awal)</label>
+                        <span id="val-v0" class="text-xs font-mono text-[#b026ff] bg-black/40 px-2 py-0.5 rounded">0.01</span>
+                    </div>
+                    <input type="range" id="slider-v0" min="0" max="0.1" step="0.001" value="0.01">
+                </div>
+
+                <!-- Max Time -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between items-end">
+                        <label class="text-xs font-medium text-gray-300">Rentang Waktu (Hari/t)</label>
+                        <span id="val-tmax" class="text-xs font-mono text-[#b026ff] bg-black/40 px-2 py-0.5 rounded">60</span>
+                    </div>
+                    <input type="range" id="slider-tmax" min="10" max="90" step="1" value="60">
+                </div>
+            </div>
+
+            <!-- Zoom Toggle Button -->
+            <button id="btn-zoom" class="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-[#b026ff]/20 border border-white/10 hover:border-[#b026ff]/40 text-xs font-semibold text-gray-200 transition-all duration-200 flex items-center justify-center gap-2 group cursor-pointer shadow-lg">
+                <svg class="w-4 h-4 text-[#b026ff] group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                <span id="zoom-btn-text">🔍 Zoom Area Perubahan (Fokus Transisi)</span>
+            </button>
+            
+            <!-- Reset Button -->
+            <button id="btn-reset" class="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 text-xs font-semibold text-gray-200 transition-all duration-200 flex items-center justify-center gap-2 group cursor-pointer shadow-lg">
+                <svg class="w-4 h-4 text-rose-400 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Reset ke Default
+            </button>
+
+            <!-- Info Box Formula -->
+            <div class="p-3 rounded-xl glass-card border border-[#b026ff]/20 shadow-[0_0_15px_rgba(176,38,255,0.05)]">
+                <p class="text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Model Asimtotik Stabil</p>
+                <code class="text-[11px] text-[#e077ff] font-mono block text-center leading-relaxed">
+                    D<sub>s</sub>(t) = D₀ · e<sup>-t / (15·θ)</sup> + θ·v₀·(1 - e<sup>-t/θ</sup>)
+                </code>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col gap-6">
+        
+        <!-- Top Stats Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-400 font-medium">Perubahan Awal (D₀)</p>
+                    <h3 id="stat-d0" class="text-lg font-bold text-white mt-1 font-mono">-1.71%</h3>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-[#b026ff]/10 border border-[#b026ff]/30 flex items-center justify-center text-[#b026ff]">
+                    📉
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-400 font-medium">Laju Akhir (Asimtotik)</p>
+                    <h3 id="stat-final" class="text-lg font-bold text-white mt-1 font-mono">0.00%</h3>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    ⚖️
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-400 font-medium">Status Tren Pasar</p>
+                    <h3 id="stat-status" class="text-sm font-semibold text-emerald-400 mt-1">Stabil / Asimtotik</h3>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                    🛡️
+                </div>
+            </div>
+        </div>
+
+        <!-- Graph Container -->
+        <div class="glass-panel flex-1 rounded-2xl p-5 md:p-6 flex flex-col min-h-[420px]">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h2 id="chart-title" class="text-base font-semibold text-white">Kurva Laju Perubahan Harga Saham LQ45</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="zoom-indicator" class="hidden text-[10px] bg-amber-500/20 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full font-semibold">🔍 Zoom Aktif (Area Transisi)</span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-[#b026ff] animate-ping"></span>
+                    <span class="text-xs text-gray-300 font-medium">Live Orb Tracer</span>
+                </div>
+            </div>
+
+            <!-- Canvas Chart wrapper -->
+            <div class="flex-1 relative w-full h-full min-h-[340px]">
+                <canvas id="lq45Chart"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Data preset dari Tabel 1 Jurnal
+        const stockData = {
+            'ADHI': { d0: -0.01709, theta: 0.00862 },
+            'ADRO': { d0: 0.00893, theta: 0.01747 },
+            'ANTM': { d0: 0.03286, theta: 0.02810 },
+            'ASII': { d0: 0.01409, theta: 0.00950 },
+            'BBCA': { d0: 0.01042, theta: 0.00530 }
+        };
+
+        // DOM Elements
+        const select = document.getElementById('stock-select');
+        const slD0 = document.getElementById('slider-d0');
+        const slTheta = document.getElementById('slider-theta');
+        const slV0 = document.getElementById('slider-v0');
+        const slTmax = document.getElementById('slider-tmax');
+        const btnReset = document.getElementById('btn-reset');
+        const btnZoom = document.getElementById('btn-zoom');
+        const zoomBtnText = document.getElementById('zoom-btn-text');
+        const zoomIndicator = document.getElementById('zoom-indicator');
+        const chartTitle = document.getElementById('chart-title');
+        
+        const valD0 = document.getElementById('val-d0');
+        const valTheta = document.getElementById('val-theta');
+        const valV0 = document.getElementById('val-v0');
+        const valTmax = document.getElementById('val-tmax');
+
+        const statD0 = document.getElementById('stat-d0');
+        const statFinal = document.getElementById('stat-final');
+        const statStatus = document.getElementById('stat-status');
+
+        let chartInstance = null;
+        let animationProgress = 0;
+        let isZoomed = false;
+
+        // Model Asimtotik Stabil
+        function calculateDs(t, d0, theta, v0) {
+            let decayFactor = Math.exp(-t / (Math.max(theta, 0.001) * 25));
+            let growthFactor = (theta * v0 * (1 - Math.exp(-t / (Math.max(theta, 0.001) * 10))));
+            return (d0 * decayFactor) + growthFactor;
+        }
+
+        function updateUIValues() {
+            valD0.textContent = parseFloat(slD0.value).toFixed(5);
+            valTheta.textContent = parseFloat(slTheta.value).toFixed(5);
+            valV0.textContent = parseFloat(slV0.value).toFixed(3);
+            valTmax.textContent = slTmax.value;
+            statD0.textContent = (parseFloat(slD0.value) * 100).toFixed(2) + '%';
+        }
+
+        function generateChartData() {
+            const d0 = parseFloat(slD0.value);
+            const theta = parseFloat(slTheta.value);
+            const v0 = parseFloat(slV0.value);
+            let tMax = parseInt(slTmax.value);
+
+            // Jika zoom aktif, batasi sumbu X hanya pada area perubahan aktif (sebelum melandai/datar)
+            let effectiveMax = tMax;
+            if (isZoomed) {
+                // Tentukan batas transisi dinamis berdasarkan theta (area perubahan utama terjadi di awal)
+                let transitionLimit = Math.max(8, Math.min(tMax, Math.round(theta * 600)));
+                effectiveMax = transitionLimit;
+            }
+
+            let labels = [];
+            let dataPoints = [];
+
+            for (let t = 0; t <= effectiveMax; t++) {
+                labels.push(`t=${t}`);
+                let val = calculateDs(t, d0, theta, v0);
+                dataPoints.push(val * 100);
+            }
+
+            // Hitung nilai akhir untuk statistik
+            let fullDataPoints = [];
+            for (let t = 0; t <= tMax; t++) {
+                fullDataPoints.push(calculateDs(t, d0, theta, v0) * 100);
+            }
+            let finalVal = fullDataPoints[fullDataPoints.length - 1];
+            statFinal.textContent = finalVal.toFixed(2) + '%';
+            
+            if (Math.abs(finalVal) < 1.0) {
+                statStatus.textContent = "Sangat Stabil / Asimtotik";
+                statStatus.className = "text-sm font-semibold text-emerald-400 mt-1";
+            } else if (finalVal > 0) {
+                statStatus.textContent = "Tren Positif Terkendali";
+                statStatus.className = "text-sm font-semibold text-cyan-400 mt-1";
+            } else {
+                statStatus.textContent = "Tren Koreksi Stabil";
+                statStatus.className = "text-sm font-semibold text-amber-400 mt-1";
+            }
+
+            return { labels, dataPoints };
+        }
+
+        // Custom Plugin untuk Animasi Bola Bercahaya (Neon Orb) yang Looping setiap 2 detik
+        const glowingOrbPlugin = {
+            id: 'glowingOrb',
+            afterDatasetsDraw(chart) {
+                const meta = chart.getDatasetMeta(0);
+                if (!meta || !meta.data || meta.data.length === 0) return;
+
+                const dataLength = meta.data.length;
+                const floatIndex = animationProgress * (dataLength - 1);
+                const lowerIndex = Math.floor(floatIndex);
+                const upperIndex = Math.min(lowerIndex + 1, dataLength - 1);
+                const fraction = floatIndex - lowerIndex;
+
+                const p1 = meta.data[lowerIndex];
+                const p2 = meta.data[upperIndex];
+
+                if (!p1 || !p2) return;
+
+                const x = p1.x + (p2.x - p1.x) * fraction;
+                const y = p1.y + (p2.y - p1.y) * fraction;
+
+                const ctx = chart.ctx;
+                ctx.save();
+                
+                // Outer Glow Ring
+                ctx.beginPath();
+                ctx.arc(x, y, 12, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(176, 38, 255, 0.35)';
+                ctx.fill();
+
+                // Inner Bright Orb
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = '#b026ff';
+                ctx.shadowBlur = 18;
+                ctx.fill();
+
+                ctx.restore();
+            }
+        };
+
+        Chart.register(glowingOrbPlugin);
+
+        function initChart() {
+            const ctx = document.getElementById('lq45Chart').getContext('2d');
+            
+            let gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(176, 38, 255, 0.35)');
+            gradient.addColorStop(1, 'rgba(176, 38, 255, 0.0)');
+
+            const { labels, dataPoints } = generateChartData();
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Laju Perubahan Harga Ds(t) %',
+                        data: dataPoints,
+                        borderColor: '#b026ff',
+                        borderWidth: 3,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#b026ff',
+                        pointHoverBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 17, 26, 0.9)',
+                            titleColor: '#e077ff',
+                            bodyColor: '#fff',
+                            borderColor: 'rgba(176, 38, 255, 0.3)',
+                            borderWidth: 1,
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return ` Laju: ${context.parsed.y.toFixed(3)}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                            ticks: { color: 'rgba(255, 255, 255, 0.4)', font: { size: 11 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                            ticks: { 
+                                color: 'rgba(255, 255, 255, 0.4)', 
+                                font: { size: 11 },
+                                callback: function(value) { return value.toFixed(1) + '%'; }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Start Animation Loop for the Neon Orb (2 seconds per cycle)
+            function orbLoop(timestamp) {
+                const duration = 2000; // 2 seconds per loop cycle
+                animationProgress = (timestamp % duration) / duration;
+                
+                if (chartInstance) {
+                    chartInstance.draw();
+                }
+                requestAnimationFrame(orbLoop);
+            }
+            requestAnimationFrame(orbLoop);
+        }
+
+        function updateChart() {
+            if (!chartInstance) return;
+            const { labels, dataPoints } = generateChartData();
+            chartInstance.data.labels = labels;
+            chartInstance.data.datasets[0].data = dataPoints;
+            chartInstance.update('none');
+        }
+
+        // Event Listeners
+        select.addEventListener('change', (e) => {
+            const preset = stockData[e.target.value];
+            if (preset) {
+                slD0.value = preset.d0;
+                slTheta.value = preset.theta;
+                slV0.value = 0.01;
+                slTmax.value = 60;
+                updateUIValues();
+                updateChart();
+            }
+        });
+
+        btnReset.addEventListener('click', () => {
+            const preset = stockData[select.value];
+            if (preset) {
+                slD0.value = preset.d0;
+                slTheta.value = preset.theta;
+                slV0.value = 0.01;
+                slTmax.value = 60;
+                isZoomed = false;
+                btnZoom.classList.remove('bg-[#b026ff]/30', 'border-[#b026ff]');
+                zoomIndicator.classList.add('hidden');
+                chartTitle.textContent = "Kurva Laju Perubahan Harga Saham LQ45";
+                updateUIValues();
+                updateChart();
+            }
+        });
+
+        btnZoom.addEventListener('click', () => {
+            isZoomed = !isZoomed;
+            if (isZoomed) {
+                btnZoom.classList.add('bg-[#b026ff]/30', 'border-[#b026ff]');
+                zoomIndicator.classList.remove('hidden');
+                chartTitle.textContent = "🔍 Kurva Zoom Area Perubahan (Fokus Transisi Awal)";
+            } else {
+                btnZoom.classList.remove('bg-[#b026ff]/30', 'border-[#b026ff]');
+                zoomIndicator.classList.add('hidden');
+                chartTitle.textContent = "Kurva Laju Perubahan Harga Saham LQ45";
+            }
+            updateChart();
+        });
+
+        [slD0, slTheta, slV0, slTmax].forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateUIValues();
+                updateChart();
+            });
+        });
+
+        // Initialize on load
+        window.onload = () => {
+            updateUIValues();
+            initChart();
+        };
+    </script>
+</body>
+</html>
